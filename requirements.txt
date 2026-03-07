@@ -1,0 +1,9 @@
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+websockets==12.0
+pydantic==2.7.1
+openai==1.30.1
+redis==5.0.4
+langdetect==1.0.9
+python-multipart==0.0.9
+httpx==0.27.0

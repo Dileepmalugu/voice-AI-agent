@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>2Care.ai — Voice AI Agent</title>
+<style>
+  :root{--blue:#1A73E8;--green:#34A853;--red:#EA4335;--bg:#F8FAFF;--card:#fff;--border:#E0E6F0;--text:#1a1a2e;--muted:#7B8FA1}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column}
+  header{background:linear-gradient(135deg,#1A73E8 0%,#0D47A1 100%);color:#fff;padding:16px 24px;display:flex;align-items:center;gap:12px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  header .logo{font-size:22px;font-weight:700;letter-spacing:-0.5px}
+  header .tagline{font-size:13px;opacity:.85}
+  .badge{background:rgba(255,255,255,.2);border-radius:20px;padding:4px 10px;font-size:12px;margin-left:auto}
+  main{flex:1;max-width:900px;width:100%;margin:0 auto;padding:20px;display:grid;grid-template-columns:1fr 340px;gap:20px}
+  @media(max-width:700px){main{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.05)}
+  h3{font-size:14px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+  /* Chat */
+  .chat-wrap{display:flex;flex-direction:column;gap:12px}
+  #chat{height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:4px 0}
+  .msg{max-width:82%;padding:10px 14px;border-radius:14px;font-size:14px;line-height:1.5;animation:fadeIn .25s ease}
+  .msg.user{background:#EBF3FD;border-bottom-right-radius:4px;align-self:flex-end}
+  .msg.agent{background:#F0FBF4;border:1px solid #c3e6cb;border-bottom-left-radius:4px;align-self:flex-start}
+  .msg.system{background:#FFF8E1;border:1px solid #ffe082;font-size:13px;align-self:center;color:#555}
+  .msg .meta{font-size:11px;color:var(--muted);margin-top:4px}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .input-row{display:flex;gap:8px;margin-top:8px}
+  #textInput{flex:1;border:1.5px solid var(--border);border-radius:10px;padding:10px 14px;font-size:14px;outline:none;transition:border-color .2s}
+  #textInput:focus{border-color:var(--blue)}
+  button{border:none;border-radius:10px;padding:10px 16px;font-size:14px;font-weight:600;cursor:pointer;transition:all .2s}
+  #sendBtn{background:var(--blue);color:#fff}
+  #sendBtn:hover{background:#1558B0}
+  #micBtn{background:#fff;border:1.5px solid var(--border);font-size:18px;width:44px}
+  #micBtn.recording{background:#FDE8E8;border-color:var(--red);animation:pulse 1s infinite}
+  @keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(234,67,53,.3)}50%{box-shadow:0 0 0 6px rgba(234,67,53,0)}}
+  /* Latency panel */
+  .lat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .lat-item{background:var(--bg);border-radius:10px;padding:10px 12px;text-align:center}
+  .lat-val{font-size:22px;font-weight:700;color:var(--blue)}
+  .lat-val.good{color:var(--green)}
+  .lat-val.bad{color:var(--red)}
+  .lat-label{font-size:11px;color:var(--muted);margin-top:2px}
+  .target-bar{margin-top:12px}
+  .bar-bg{background:#E8F0FE;border-radius:8px;height:8px;overflow:hidden}
+  .bar-fill{height:100%;border-radius:8px;background:var(--green);transition:width .5s,background .5s}
+  .bar-fill.over{background:var(--red)}
+  .bar-text{display:flex;justify-content:space-between;font-size:11px;color:var(--muted);margin-top:4px}
+  /* Appointments */
+  .appt-list{display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto}
+  .appt-item{background:var(--bg);border-radius:10px;padding:10px 12px;font-size:13px;display:flex;justify-content:space-between;align-items:center}
+  .appt-info span{display:block;color:var(--muted);font-size:11px;margin-top:2px}
+  .status{background:#E8F5E9;color:#2E7D32;border-radius:20px;padding:2px 8px;font-size:11px;font-weight:600}
+  /* Language */
+  .lang-btns{display:flex;gap:8px;flex-wrap:wrap}
+  .lang-btn{background:var(--bg);border:1.5px solid var(--border);border-radius:8px;padding:6px 14px;font-size:13px;cursor:pointer;transition:all .2s}
+  .lang-btn.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+  /* Connection status */
+  .conn-dot{width:8px;height:8px;border-radius:50%;background:#ccc;display:inline-block;margin-right:6px}
+  .conn-dot.connected{background:var(--green)}
+  .conn-dot.disconnected{background:var(--red)}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <div class="logo">🏥 Clinical Appointment Booking System</div>
+  </div>
+  <div class="badge" id="connStatus"><span class="conn-dot" id="connDot"></span>Connecting…</div>
+</header>
+
+<main>
+  <!-- LEFT: Chat -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div class="card chat-wrap">
+      <h3>💬 Voice Conversation</h3>
+      <div id="chat"></div>
+      <div class="input-row">
+        <button id="micBtn" title="Hold to speak">🎤</button>
+        <input id="textInput" placeholder="Type message or click 🎤 to speak…" autocomplete="off"/>
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
+
+    <!-- Language Selector -->
+    <div class="card">
+      <h3>🌐 Language</h3>
+      <div class="lang-btns">
+        <button class="lang-btn active" data-lang="en" onclick="setLang(this)">🇺🇸 English</button>
+        <button class="lang-btn" data-lang="hi" onclick="setLang(this)">🇮🇳 हिंदी</button>
+        <button class="lang-btn" data-lang="ta" onclick="setLang(this)">🇮🇳 தமிழ்</button>
+        <button class="lang-btn active-auto" data-lang="auto" onclick="setLang(this)">🔍 Auto-detect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT: Metrics & Appointments -->
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <!-- Latency -->
+    <div class="card">
+      <h3>⚡ Latency Monitor</h3>
+      <div class="lat-grid">
+        <div class="lat-item"><div class="lat-val" id="latSTT">—</div><div class="lat-label">STT (ms)</div></div>
+        <div class="lat-item"><div class="lat-val" id="latAgent">—</div><div class="lat-label">Agent (ms)</div></div>
+        <div class="lat-item"><div class="lat-val" id="latTTS">—</div><div class="lat-label">TTS (ms)</div></div>
+        <div class="lat-item"><div class="lat-val" id="latTotal" style="font-size:26px">—</div><div class="lat-label">Total (ms)</div></div>
+      </div>
+      <div class="target-bar" style="margin-top:14px">
+        <div style="font-size:12px;font-weight:600;margin-bottom:4px">Target: &lt; 450 ms</div>
+        <div class="bar-bg"><div class="bar-fill" id="barFill" style="width:0%"></div></div>
+        <div class="bar-text"><span id="barLabel">Waiting…</span><span>450ms</span></div>
+      </div>
+    </div>
+
+    <!-- Appointments -->
+    <div class="card">
+      <h3>📅 Appointments (P001)</h3>
+      <div class="appt-list" id="apptList">
+        <div style="color:var(--muted);font-size:13px">Loading…</div>
+      </div>
+      <button onclick="loadAppointments()" style="margin-top:10px;background:var(--bg);border:1px solid var(--border);color:var(--text);width:100%;padding:8px;font-size:12px">🔄 Refresh</button>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="card">
+      <h3>🚀 Quick Test</h3>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <button onclick="quickSend('Book appointment with cardiologist tomorrow at 10 AM')" style="background:#EBF3FD;color:var(--blue);text-align:left;padding:8px 12px;font-size:13px">📅 Book Cardiology</button>
+        <button onclick="quickSend('मुझे कल डॉक्टर से मिलना है')" style="background:#FFF3E0;color:#E65100;text-align:left;padding:8px 12px;font-size:13px">🇮🇳 Hindi - Book Appt</button>
+        <button onclick="quickSend('நாளை மருத்துவரை பார்க்க வேண்டும்')" style="background:#F3E5F5;color:#6A1B9A;text-align:left;padding:8px 12px;font-size:13px">🇮🇳 Tamil - Book Appt</button>
+        <button onclick="quickSend('What appointments do I have?')" style="background:#E8F5E9;color:#2E7D32;text-align:left;padding:8px 12px;font-size:13px">📋 View My Appointments</button>
+        <button onclick="quickSend('Cancel my appointment')" style="background:#FDE8E8;color:var(--red);text-align:left;padding:8px 12px;font-size:13px">❌ Cancel Appointment</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const BASE = window.location.origin;
+const WS_BASE = BASE.replace('http','ws');
+let ws, sessionId = crypto.randomUUID(), patientId = 'P001', language = 'auto';
+let mediaRecorder, audioChunks = [], recording = false;
+
+// ── WebSocket ──────────────────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(`${WS_BASE}/ws/voice/${sessionId}`);
+  ws.onopen = () => {
+    setConn(true);
+    addMsg('system', 'Connected to 2Care.ai Voice Agent ✓');
+    startPing();
+  };
+  ws.onclose = () => { setConn(false); setTimeout(connect, 3000); };
+  ws.onerror = () => setConn(false);
+  ws.onmessage = e => handleWS(JSON.parse(e.data));
+}
+
+function handleWS(msg) {
+  if (msg.type === 'pong') return;
+  if (msg.type === 'transcript') {
+    addMsg('user', `🎤 ${msg.text}` + (msg.language ? ` (${msg.language})` : ''));
+  }
+  if (msg.type === 'response') {
+    addMsg('agent', msg.text, `Agent • ${msg.latency_agent_ms}ms`);
+    speak(msg.text);
+  }
+  if (msg.type === 'audio' && msg.data) {
+    playAudioB64(msg.data);
+  }
+  if (msg.type === 'latency') {
+    updateLatency(msg.breakdown, msg.total_ms, msg.target_met);
+  }
+  if (msg.type === 'error') {
+    addMsg('system', '⚠️ ' + msg.message);
+  }
+}
+
+function sendText(text) {
+  if (!text.trim()) return;
+  addMsg('user', text);
+  const lang = language === 'auto' ? detectLang(text) : language;
+  if (ws && ws.readyState === 1) {
+    ws.send(JSON.stringify({ type: 'text', data: text, patient_id: patientId, language: lang }));
+  } else {
+    // Fallback to REST
+    fetch(`${BASE}/api/chat`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ text, session_id: sessionId, patient_id: patientId, language: lang })
+    }).then(r => r.json()).then(d => {
+      addMsg('agent', d.response, `Agent • ${d.latency_ms?.total}ms`);
+      speak(d.response);
+      if (d.latency_ms) updateLatencyFromRest(d.latency_ms);
+    }).catch(() => addMsg('system','⚠️ Could not reach server'));
+  }
+}
+
+// ── Latency UI ─────────────────────────────────────────────────────────────
+function updateLatency(b, total, targetMet) {
+  const setVal = (id, v) => {
+    const el = document.getElementById(id);
+    el.textContent = v != null ? v : '—';
+    el.className = 'lat-val ' + (v != null ? (v < 200 ? 'good' : (v > 350 ? 'bad' : '')) : '');
+  };
+  setVal('latSTT', b.stt_ms);
+  setVal('latAgent', b.agent_ms);
+  setVal('latTTS', b.tts_ms);
+  const te = document.getElementById('latTotal');
+  te.textContent = total;
+  te.className = 'lat-val ' + (targetMet ? 'good' : 'bad');
+  const pct = Math.min((total / 450) * 100, 100);
+  const bar = document.getElementById('barFill');
+  bar.style.width = pct + '%';
+  bar.className = 'bar-fill' + (targetMet ? '' : ' over');
+  document.getElementById('barLabel').textContent = `${total}ms ${targetMet ? '✓ Under target' : '✗ Over 450ms target'}`;
+}
+function updateLatencyFromRest(lat) {
+  updateLatency({ lang_ms: lat.language_detection, agent_ms: lat.agent_reasoning }, lat.total, lat.total < 450);
+}
+
+// ── Chat UI ────────────────────────────────────────────────────────────────
+function addMsg(role, text, meta) {
+  const chat = document.getElementById('chat');
+  const d = document.createElement('div');
+  d.className = `msg ${role}`;
+  d.innerHTML = `<div>${escHtml(text)}</div>` + (meta ? `<div class="meta">${meta}</div>` : '');
+  chat.appendChild(d);
+  chat.scrollTop = chat.scrollHeight;
+}
+function escHtml(t) { return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── Mic ───────────────────────────────────────────────────────────────────
+document.getElementById('micBtn').addEventListener('mousedown', startRec);
+document.getElementById('micBtn').addEventListener('touchstart', e => { e.preventDefault(); startRec(); });
+document.getElementById('micBtn').addEventListener('mouseup', stopRec);
+document.getElementById('micBtn').addEventListener('touchend', stopRec);
+
+async function startRec() {
+  if (recording) return;
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    mediaRecorder = new MediaRecorder(stream);
+    audioChunks = [];
+    mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+    mediaRecorder.onstop = sendAudio;
+    mediaRecorder.start();
+    recording = true;
+    document.getElementById('micBtn').classList.add('recording');
+    addMsg('system', '🎙️ Listening…');
+  } catch { addMsg('system','⚠️ Microphone access denied'); }
+}
+function stopRec() {
+  if (!recording || !mediaRecorder) return;
+  mediaRecorder.stop();
+  recording = false;
+  document.getElementById('micBtn').classList.remove('recording');
+}
+function sendAudio() {
+  const blob = new Blob(audioChunks, { type: 'audio/webm' });
+  const reader = new FileReader();
+  reader.onload = () => {
+    const b64 = reader.result.split(',')[1];
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'audio', data: b64, patient_id: patientId }));
+    }
+  };
+  reader.readAsDataURL(blob);
+}
+
+// ── TTS Playback ──────────────────────────────────────────────────────────
+function speak(text) {
+  if (!text) return;
+  const lang = language === 'auto' ? detectLang(text) : language;
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = lang === 'hi' ? 'hi-IN' : lang === 'ta' ? 'ta-IN' : 'en-US';
+  speechSynthesis.speak(utt);
+}
+function playAudioB64(b64) {
+  const audio = new Audio('data:audio/mp3;base64,' + b64);
+  audio.play().catch(() => {});
+}
+
+// ── Appointments ──────────────────────────────────────────────────────────
+function loadAppointments() {
+  fetch(`${BASE}/api/appointments/${patientId}`)
+    .then(r => r.json()).then(appts => {
+      const el = document.getElementById('apptList');
+      el.innerHTML = '';
+      if (!appts.length) { el.innerHTML = '<div style="color:var(--muted);font-size:13px">No upcoming appointments</div>'; return; }
+      appts.forEach(a => {
+        el.innerHTML += `<div class="appt-item"><div class="appt-info"><b>${a.doctor_name}</b><span>${a.specialty} • ${a.date} ${a.time_slot}</span></div><span class="status">${a.status}</span></div>`;
+      });
+    }).catch(() => {});
+}
+
+// ── Language ──────────────────────────────────────────────────────────────
+function setLang(btn) {
+  document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  language = btn.dataset.lang;
+}
+function detectLang(text) {
+  if (/[\u0900-\u097F]/.test(text)) return 'hi';
+  if (/[\u0B80-\u0BFF]/.test(text)) return 'ta';
+  return 'en';
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function setConn(ok) {
+  document.getElementById('connDot').className = 'conn-dot ' + (ok ? 'connected' : 'disconnected');
+  document.getElementById('connStatus').innerHTML = `<span class="conn-dot ${ok?'connected':'disconnected'}"></span>${ok ? 'Connected' : 'Reconnecting…'}`;
+}
+function startPing() {
+  setInterval(() => { if (ws?.readyState === 1) ws.send(JSON.stringify({type:'ping'})); }, 20000);
+}
+function quickSend(text) { document.getElementById('textInput').value = text; sendText(text); document.getElementById('textInput').value = ''; }
+
+document.getElementById('sendBtn').onclick = () => {
+  const v = document.getElementById('textInput').value;
+  sendText(v); document.getElementById('textInput').value = '';
+};
+document.getElementById('textInput').onkeydown = e => {
+  if (e.key === 'Enter') { sendText(e.target.value); e.target.value = ''; }
+};
+
+connect();
+loadAppointments();
+</script>
+</body>
+</html>
