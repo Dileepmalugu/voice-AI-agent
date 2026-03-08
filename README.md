@@ -44,7 +44,7 @@ cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 docker-compose up --build
 ```
-Open: http://localhost:8000/ui
+Open: https://voice-ai-agent-2.onrender.com/ui
 
 ### Option 2 — Local Python
 ```bash
